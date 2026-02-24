@@ -16,4 +16,5 @@ export const ACTION_EXPAND_PANEL = 'togglePanel';
 export const ACTION_EXPORT_CSV = 'ACTION_EXPORT_CSV';
 export const ACTION_UNLINK_FROM_LIBRARY = 'unlinkFromLibrary';
 export const ACTION_ADD_SECTION = 'addCollapsibleSection';
+export const ACTION_SHARE_COLOR_MAPPING = 'shareColorMapping';
 export const BADGE_FILTERS_NOTIFICATION = 'ACTION_FILTERS_NOTIFICATION';

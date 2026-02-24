@@ -62,6 +62,7 @@ import { coreServices, usageCollectionService } from '../../services/kibana_serv
 import { DASHBOARD_UI_METRIC_ID } from '../../utils/telemetry_constants';
 import type { initializeTrackPanel } from '../track_panel';
 import type { initializeViewModeManager } from '../view_mode_manager';
+import type { UndoFn } from '../undo_manager';
 import { arePanelLayoutsEqual, arePinnedPanelLayoutsEqual } from './are_layouts_equal';
 import { deserializeLayout } from './deserialize_layout';
 import { serializeLayout } from './serialize_layout';
@@ -78,7 +79,8 @@ export function initializeLayoutManager(
   incomingEmbeddables: EmbeddablePackageState[] | undefined,
   initialPanels: DashboardState['panels'],
   initialPinnedPanels: DashboardState['pinned_panels'] | undefined,
-  trackPanel: ReturnType<typeof initializeTrackPanel>
+  trackPanel: ReturnType<typeof initializeTrackPanel>,
+  pushUndo?: (fn: UndoFn) => void
 ) {
   // --------------------------------------------------------------------------------------
   // Set up panel state manager
@@ -317,7 +319,52 @@ export function initializeLayoutManager(
     return (await getChildApi(uuid)) as ApiType;
   };
 
-  const removePanel = (uuid: string) => {
+  const restorePanel = (
+    uuid: string,
+    layoutEntry: DashboardLayoutPanel | PinnedPanelLayoutState,
+    serializedState: object
+  ) => {
+    currentChildState[uuid] = serializedState;
+    const currentLayout = layout$.value;
+    if (isDashboardLayoutPanel(layoutEntry)) {
+      layout$.next({
+        ...currentLayout,
+        panels: {
+          ...currentLayout.panels,
+          [uuid]: layoutEntry,
+        },
+      });
+    } else {
+      const pinnedPanels = { ...currentLayout.pinnedPanels, [uuid]: layoutEntry };
+      layout$.next({
+        ...currentLayout,
+        pinnedPanels,
+      });
+    }
+  };
+
+  const restoreLayout = (layout: DashboardLayout) => {
+    layout$.next(layout);
+  };
+
+  const removePanel = (uuid: string, options?: { captureForUndo?: boolean }) => {
+    const currentLayout = layout$.value;
+    const panels = { ...currentLayout.panels };
+    const pinnedPanels = { ...currentLayout.pinnedPanels };
+    const panelLayout = panels[uuid];
+    const pinnedLayout = pinnedPanels[uuid];
+    const serializedState = currentChildState[uuid];
+
+    if (options?.captureForUndo && pushUndo && (panelLayout || pinnedLayout) && serializedState) {
+      const layoutEntry = panelLayout ?? pinnedLayout;
+      const entry = layoutEntry as DashboardLayoutPanel | PinnedPanelLayoutState;
+      pushUndo(async () => restorePanel(uuid, { ...entry }, { ...serializedState }));
+    }
+
+    doRemovePanel(uuid);
+  };
+
+  const doRemovePanel = (uuid: string) => {
     const currentLayout = layout$.value;
     const panels = { ...currentLayout.panels };
     const pinnedPanels = { ...currentLayout.pinnedPanels };
@@ -326,7 +373,6 @@ export function initializeLayoutManager(
       layout$.next({ ...layout$.value, panels });
     } else if (pinnedPanels[uuid]) {
       delete pinnedPanels[uuid];
-      // Recompute the order of the remaining pinned panels
       const newPinnedPanels: typeof pinnedPanels = Object.entries(pinnedPanels)
         .sort(([, a], [, b]) => a.order - b.order)
         .reduce(
@@ -335,7 +381,6 @@ export function initializeLayoutManager(
         );
       layout$.next({ ...layout$.value, pinnedPanels: newPinnedPanels });
     }
-
     const children = { ...children$.value };
     if (children[uuid]) {
       delete children[uuid];
@@ -346,12 +391,48 @@ export function initializeLayoutManager(
     }
   };
 
+  const removePanels = (uuids: string[], options?: { captureForUndo?: boolean }) => {
+    if (options?.captureForUndo && pushUndo && uuids.length > 0) {
+      const currentLayout = layout$.value;
+      const captured: Array<{
+        uuid: string;
+        layoutEntry: DashboardLayoutPanel | PinnedPanelLayoutState;
+        serializedState: object;
+      }> = [];
+      for (const uuid of uuids) {
+        const panelLayout = currentLayout.panels[uuid];
+        const pinnedLayout = currentLayout.pinnedPanels[uuid];
+        const serializedState = currentChildState[uuid];
+        if ((panelLayout || pinnedLayout) && serializedState) {
+          const layoutEntry = (panelLayout ?? pinnedLayout) as
+            | DashboardLayoutPanel
+            | PinnedPanelLayoutState;
+          captured.push({ uuid, layoutEntry: { ...layoutEntry }, serializedState: { ...serializedState } });
+        }
+      }
+      for (const uuid of uuids) {
+        doRemovePanel(uuid);
+      }
+      if (captured.length > 0) {
+        pushUndo(async () => {
+          for (const { uuid, layoutEntry, serializedState } of captured) {
+            restorePanel(uuid, layoutEntry, serializedState);
+          }
+        });
+      }
+      return;
+    }
+    for (const uuid of uuids) {
+      doRemovePanel(uuid);
+    }
+  };
+
   const replacePanel = async (idToRemove: string, panelPackage: PanelPackage) => {
     const existingGridData = layout$.value.panels[idToRemove]?.grid;
     const existingPinnedPanelData = layout$.value.pinnedPanels[idToRemove];
     if (!existingGridData && !existingPinnedPanelData) throw new PanelNotFoundError();
 
-    removePanel(idToRemove);
+    doRemovePanel(idToRemove);
     if (existingGridData) {
       const newPanel = await addNewPanel<DefaultEmbeddableApi>(
         panelPackage,
@@ -366,7 +447,10 @@ export function initializeLayoutManager(
     }
   };
 
-  const duplicatePanel = async (uuidToDuplicate: string) => {
+  const duplicatePanel = async (
+    uuidToDuplicate: string,
+    options?: { silent?: boolean; skipUndo?: boolean }
+  ): Promise<string> => {
     const layoutItemToDuplicate = layout$.value.panels[uuidToDuplicate];
     const apiToDuplicate = children$.value[uuidToDuplicate];
     if (!apiToDuplicate || !layoutItemToDuplicate) throw new PanelNotFoundError();
@@ -404,12 +488,57 @@ export function initializeLayoutManager(
       },
     });
 
-    coreServices.notifications.toasts.addSuccess({
-      title: dashboardClonePanelActionStrings.getSuccessMessage(),
-      'data-test-subj': 'addObjectToContainerSuccess',
-    });
+    if (!options?.silent) {
+      coreServices.notifications.toasts.addSuccess({
+        title: dashboardClonePanelActionStrings.getSuccessMessage(),
+        'data-test-subj': 'addObjectToContainerSuccess',
+      });
+    }
     trackPanel.setScrollToPanelId(uuidOfDuplicate);
     trackPanel.setHighlightPanelId(uuidOfDuplicate);
+
+    if (pushUndo && !options?.skipUndo) {
+      pushUndo(async () => doRemovePanel(uuidOfDuplicate));
+    }
+    return uuidOfDuplicate;
+  };
+
+  const duplicatePanels = async (uuids: string[]): Promise<string[]> => {
+    const newIds: string[] = [];
+    for (const id of uuids) {
+      try {
+        const newId = await duplicatePanel(id, { silent: true, skipUndo: true });
+        newIds.push(newId);
+      } catch {
+        // skip if panel no longer exists
+      }
+    }
+    if (pushUndo && newIds.length > 0) {
+      pushUndo(async () => {
+        for (const id of newIds) {
+          doRemovePanel(id);
+        }
+      });
+    }
+    if (newIds.length > 1) {
+      coreServices.notifications.toasts.addSuccess({
+        title: i18n.translate('dashboard.panel.duplicatedPanelsToast', {
+          defaultMessage: 'Duplicated {count} panels',
+          values: { count: newIds.length },
+        }),
+        'data-test-subj': 'addObjectToContainerSuccess',
+      });
+    } else if (newIds.length === 1) {
+      coreServices.notifications.toasts.addSuccess({
+        title: dashboardClonePanelActionStrings.getSuccessMessage(),
+        'data-test-subj': 'addObjectToContainerSuccess',
+      });
+    }
+    if (newIds.length > 0) {
+      trackPanel.setScrollToPanelId(newIds[newIds.length - 1]);
+      trackPanel.setHighlightPanelId(newIds[newIds.length - 1]);
+    }
+    return newIds;
   };
 
   const pinPanel = (uuid: string, panelToPin: DashboardPinnablePanel) => {
@@ -578,8 +707,12 @@ export function initializeLayoutManager(
       getChildApi,
       addNewPanel,
       removePanel,
+      removePanels,
       replacePanel,
       duplicatePanel,
+      duplicatePanels,
+      restorePanel,
+      restoreLayout,
       getDashboardPanelFromId,
       getPanelCount: () => Object.keys(layout$.value.panels).length,
       canRemovePanels: () => trackPanel.expandedPanelId$.value === undefined,
@@ -659,6 +792,47 @@ export function initializeLayoutManager(
           sections,
         });
         trackPanel.scrollToBottom$.next();
+      },
+      movePanelsToNewSection: (panelIds: string[]) => {
+        if (panelIds.length === 0) return;
+        const currentLayout = layout$.getValue();
+        const panels = { ...currentLayout.panels };
+        const sectionPanelIds = panelIds.filter((id) => panels[id]);
+        if (sectionPanelIds.length === 0) return;
+
+        if (pushUndo) {
+          pushUndo(async () => restoreLayout(currentLayout));
+        }
+
+        let minY = Infinity;
+        sectionPanelIds.forEach((id) => {
+          const y = panels[id].grid.y ?? 0;
+          minY = Math.min(minY, y);
+        });
+        if (minY === Infinity) minY = 0;
+
+        const sections = { ...currentLayout.sections };
+        const newSectionId = v4();
+        sections[newSectionId] = {
+          grid: { y: minY },
+          title: i18n.translate('dashboard.defaultSectionTitle', {
+            defaultMessage: 'New collapsible section',
+          }),
+          collapsed: false,
+        };
+
+        sectionPanelIds.forEach((id) => {
+          panels[id] = {
+            ...panels[id],
+            grid: { ...panels[id].grid, sectionId: newSectionId },
+          };
+        });
+
+        layout$.next({
+          ...currentLayout,
+          sections,
+          panels,
+        });
       },
       getPanelSection: (uuid: string) => {
         return layout$.getValue().panels[uuid]?.grid?.sectionId;

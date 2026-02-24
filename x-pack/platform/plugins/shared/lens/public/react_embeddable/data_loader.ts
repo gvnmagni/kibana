@@ -41,6 +41,7 @@ import { getExpressionRendererParams } from './expressions/expression_params';
 import { getMergedSearchContext } from './expressions/merged_search_context';
 import { getLogError } from './expressions/telemetry';
 import { getUsedDataViews } from './expressions/update_data_views';
+import { getBreakdownFieldNameFromAttributes } from './breakdown_field_name';
 import { getParentContext, getRenderMode } from './helper';
 import { addLog } from './logger';
 import { apiHasLensComponentCallbacks, apiHasUserMessages } from './type_guards';
@@ -328,6 +329,16 @@ export function loadEmbeddableData(
       }
     }),
   ];
+
+  // Keep Smart Title breakdown field name in sync with attributes
+  if ('breakdownFieldName$' in api && api.breakdownFieldName$?.next) {
+    subscriptions.push(
+      internalApi.attributes$.subscribe((attributes) => {
+        const name = getBreakdownFieldNameFromAttributes(attributes);
+        api.breakdownFieldName$.next(name);
+      })
+    );
+  }
   // There are few key moments when errors are checked and displayed:
   // * at setup time (here) before the first expression evaluation
   // * at runtime => when the expression is running and ES/Kibana server could emit errors)

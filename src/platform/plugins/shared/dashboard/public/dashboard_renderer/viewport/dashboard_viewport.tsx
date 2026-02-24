@@ -8,7 +8,7 @@
  */
 
 import classNames from 'classnames';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 
 import { EuiPortal, type UseEuiTheme } from '@elastic/eui';
 import { ExitFullScreenButton } from '@kbn/shared-ux-button-exit-full-screen';
@@ -42,6 +42,35 @@ export const DashboardViewport = () => {
   const onExit = useCallback(() => {
     dashboardApi.setFullScreenMode(false);
   }, [dashboardApi]);
+
+  useEffect(() => {
+    if (viewMode !== 'edit') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInputFocused =
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        (document.activeElement as HTMLElement)?.getAttribute?.('contenteditable') === 'true';
+      if (isInputFocused) return;
+
+      const isCopy = (e.metaKey || e.ctrlKey) && e.key === 'c';
+      const isPaste = (e.metaKey || e.ctrlKey) && e.key === 'v';
+      const isUndo = (e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey;
+      if (isCopy) {
+        e.preventDefault();
+        dashboardApi.copySelectedPanels();
+      } else if (isPaste) {
+        e.preventDefault();
+        dashboardApi.runPastePanels();
+      } else if (isUndo && dashboardApi.runUndo) {
+        e.preventDefault();
+        dashboardApi.runUndo();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode, dashboardApi]);
 
   const { panelCount, visiblePanelCount, sectionCount } = useMemo(() => {
     const panels = Object.values(layout.panels);

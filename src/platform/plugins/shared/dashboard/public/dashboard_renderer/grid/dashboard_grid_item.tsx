@@ -16,7 +16,15 @@ import {
   useStateFromPublishingSubject,
 } from '@kbn/presentation-publishing';
 import classNames from 'classnames';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useMemoCss } from '@kbn/css-utils/public/use_memo_css';
 import { useDashboardApi } from '../../dashboard_api/use_dashboard_api';
 import { useDashboardInternalApi } from '../../dashboard_api/use_dashboard_internal_api';
@@ -24,6 +32,7 @@ import { presentationUtilService } from '../../services/kibana_services';
 import { printViewportVisStyles } from '../print_styles';
 import { DASHBOARD_MARGIN_SIZE } from './constants';
 import { getHighlightStyles } from './highlight_styles';
+import { PanelContextMenuContext, SelectionPreviewContext } from './panel_context_menu';
 
 type DivProps = Pick<React.HTMLAttributes<HTMLDivElement>, 'className' | 'style' | 'children'>;
 
@@ -59,6 +68,7 @@ export const Item = React.forwardRef<HTMLDivElement, Props>(
       scrollToPanelId,
       expandedPanelId,
       focusedPanelId,
+      selectedPanelIds,
       useMargins,
       viewMode,
       dashboardContainerRef,
@@ -68,6 +78,7 @@ export const Item = React.forwardRef<HTMLDivElement, Props>(
       dashboardApi.scrollToPanelId$,
       dashboardApi.expandedPanelId$,
       dashboardApi.focusedPanelId$,
+      dashboardApi.selectedPanelIds$,
       dashboardApi.settings.useMargins$,
       dashboardApi.viewMode$,
       dashboardInternalApi.dashboardContainerRef$,
@@ -81,11 +92,15 @@ export const Item = React.forwardRef<HTMLDivElement, Props>(
       focusedPanelId !== undefined &&
       focusedPanelId !== id &&
       !arePanelsRelated(id, focusedPanelId);
+    const previewSelectedPanelIds = useContext(SelectionPreviewContext);
+    const isSelected =
+      selectedPanelIds.has(id) || (previewSelectedPanelIds?.has(id) ?? false);
     const classes = classNames('dshDashboardGrid__item', {
       'dshDashboardGrid__item--expanded': expandPanel,
       'dshDashboardGrid__item--hidden': hidePanel,
       'dshDashboardGrid__item--focused': focusPanel,
       'dshDashboardGrid__item--blurred': blurPanel,
+      'dshDashboardGrid__item--selected': isSelected,
       // eslint-disable-next-line @typescript-eslint/naming-convention
       printViewport__vis: viewMode === 'print',
     });
@@ -151,6 +166,30 @@ export const Item = React.forwardRef<HTMLDivElement, Props>(
           }px`,
         });
 
+    const panelContextMenu = useContext(PanelContextMenuContext);
+
+    const handlePanelClick = useCallback(
+      (e: React.MouseEvent) => {
+        if (e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          dashboardApi.togglePanelSelection(id);
+        }
+      },
+      [dashboardApi, id]
+    );
+
+    const handleContextMenu = useCallback(
+      (e: React.MouseEvent) => {
+        if (viewMode === 'edit' && panelContextMenu) {
+          e.preventDefault();
+          e.stopPropagation();
+          panelContextMenu.openContextMenu(id, { x: e.clientX, y: e.clientY });
+        }
+      },
+      [viewMode, panelContextMenu, id]
+    );
+
     return (
       <div
         css={[focusStyles, styles.item]}
@@ -158,6 +197,8 @@ export const Item = React.forwardRef<HTMLDivElement, Props>(
         data-test-subj="dashboardPanel"
         id={`panel-${id}`}
         ref={ref}
+        onClick={handlePanelClick}
+        onContextMenu={handleContextMenu}
         {...rest}
       >
         {isRenderable ? (

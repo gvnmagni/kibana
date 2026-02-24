@@ -20,6 +20,7 @@ import {
   ACTION_COPY_TO_DASHBOARD,
   ACTION_EXPAND_PANEL,
   ACTION_EXPORT_CSV,
+  ACTION_SHARE_COLOR_MAPPING,
   ACTION_UNLINK_FROM_LIBRARY,
   BADGE_FILTERS_NOTIFICATION,
 } from './constants';
@@ -76,4 +77,10 @@ export const registerActions = async (plugins: DashboardStartDependencies) => {
     return new CopyToDashboardAction();
   });
   uiActions.attachAction(CONTEXT_MENU_TRIGGER, ACTION_COPY_TO_DASHBOARD);
+
+  uiActions.registerActionAsync(ACTION_SHARE_COLOR_MAPPING, async () => {
+    const { ShareColorMappingAction } = await import('./share_color_mapping_action');
+    return new ShareColorMappingAction();
+  });
+  uiActions.attachAction(CONTEXT_MENU_TRIGGER, ACTION_SHARE_COLOR_MAPPING);
 };

@@ -17,6 +17,8 @@ import { titleComparators } from '@kbn/presentation-publishing';
 import { apiIsPresentationContainer, apiPublishesSettings } from '@kbn/presentation-publishing';
 import type { Observable } from 'rxjs';
 import { BehaviorSubject, map, merge } from 'rxjs';
+
+import { getBreakdownFieldNameFromAttributes } from '../breakdown_field_name';
 import type {
   LensComponentProps,
   LensPanelProps,
@@ -61,7 +63,9 @@ export interface DashboardServicesConfig {
     PublishesWritableDescription &
     HasLibraryTransforms<LensSerializedAPIConfig, LensSerializedAPIConfig> &
     Pick<LensApi, 'parentApi'> &
-    Pick<IntegrationCallbacks, 'updateOverrides' | 'getTriggerCompatibleActions'>;
+    Pick<IntegrationCallbacks, 'updateOverrides' | 'getTriggerCompatibleActions'> & {
+      breakdownFieldName$: BehaviorSubject<string | undefined>;
+    };
   anyStateChange$: Observable<void>;
   getLatestState: () => SerializedProps;
   reinitializeState: (lastSaved?: LensSerializedAPIConfig) => void;
@@ -88,11 +92,16 @@ export function initializeDashboardServices(
       : initialState.description
   );
 
+  const breakdownFieldName$ = new BehaviorSubject<string | undefined>(
+    getBreakdownFieldNameFromAttributes(initialState.attributes)
+  );
+
   return {
     api: {
       parentApi: apiIsPresentationContainer(parentApi) ? parentApi : undefined,
       defaultTitle$,
       defaultDescription$,
+      breakdownFieldName$,
       ...titleManager.api,
       updateOverrides: internalApi.updateOverrides,
       getTriggerCompatibleActions: uiActions.getTriggerCompatibleActions,

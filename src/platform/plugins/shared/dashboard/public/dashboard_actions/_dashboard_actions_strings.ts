@@ -49,6 +49,28 @@ export const dashboardAddToLibraryActionStrings = {
     }),
 };
 
+export const dashboardShareColorMappingActionStrings = {
+  getDisplayName: () =>
+    i18n.translate('dashboard.panel.shareColorMapping', {
+      defaultMessage: 'Share color mapping',
+    }),
+};
+
+export const dashboardPanelContextMenuStrings = {
+  getDuplicateLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.duplicate', {
+      defaultMessage: 'Duplicate',
+    }),
+  getRemoveLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.remove', {
+      defaultMessage: 'Remove',
+    }),
+  getGroupLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.group', {
+      defaultMessage: 'Group',
+    }),
+};
+
 export const dashboardClonePanelActionStrings = {
   getDisplayName: () =>
     i18n.translate('dashboard.panel.clonePanel', {

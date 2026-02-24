@@ -77,6 +77,7 @@ test('renders Item', async () => {
   expect(panelElement!.classList.contains('dshDashboardGrid__item--hidden')).toBe(false);
   expect(panelElement!.classList.contains('dshDashboardGrid__item--focused')).toBe(false);
   expect(panelElement!.classList.contains('dshDashboardGrid__item--blurred')).toBe(false);
+  expect(panelElement!.classList.contains('dshDashboardGrid__item--selected')).toBe(false);
 });
 
 test('renders expanded panel', async () => {
@@ -153,4 +154,32 @@ test('renders blurred panel', async () => {
   expect(panelElement).not.toBeNull();
   expect(panelElement!.classList.contains('dshDashboardGrid__item--focused')).toBe(false);
   expect(panelElement!.classList.contains('dshDashboardGrid__item--blurred')).toBe(true);
+});
+
+test('Shift+click toggles panel selection and applies selected class', async () => {
+  const { component, dashboardApi } = createAndMountDashboardGridItem({
+    id: '1',
+    key: '1',
+    type: TEST_EMBEDDABLE,
+  });
+
+  const panelElement = component.container.querySelector('#panel-1');
+  expect(panelElement).not.toBeNull();
+  expect(panelElement!.classList.contains('dshDashboardGrid__item--selected')).toBe(false);
+
+  await act(async () => {
+    panelElement!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })
+    );
+  });
+
+  expect(panelElement!.classList.contains('dshDashboardGrid__item--selected')).toBe(true);
+
+  await act(async () => {
+    panelElement!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })
+    );
+  });
+
+  expect(panelElement!.classList.contains('dshDashboardGrid__item--selected')).toBe(false);
 });

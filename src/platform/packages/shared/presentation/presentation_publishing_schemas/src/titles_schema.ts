@@ -12,5 +12,6 @@ import { schema } from '@kbn/config-schema';
 export const serializedTitlesSchema = schema.object({
   description: schema.maybe(schema.string()),
   hide_title: schema.maybe(schema.boolean()),
+  smart_title: schema.maybe(schema.boolean()),
   title: schema.maybe(schema.string()),
 });

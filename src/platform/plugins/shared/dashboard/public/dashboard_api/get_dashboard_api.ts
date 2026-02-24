@@ -28,6 +28,7 @@ import { initializeTimesliceManager } from './timeslice_manager';
 import { initializeTrackContentfulRender } from './track_contentful_render';
 import { initializeTrackOverlay } from './track_overlay';
 import { initializeTrackPanel } from './track_panel';
+import { initializeUndoManager } from './undo_manager';
 import type {
   DashboardApi,
   DashboardCreationOptions,
@@ -82,12 +83,15 @@ export function getDashboardApi({
     await layoutManager.api.getChildApi(id);
   }, dashboardContainerRef$);
 
+  const undoManager = initializeUndoManager();
+
   const layoutManager = initializeLayoutManager(
     viewModeManager,
     incomingEmbeddables,
     initialState.panels,
     initialState.pinned_panels,
-    trackPanel
+    trackPanel,
+    undoManager.pushUndo
   );
 
   const dataLoadingManager = initializeDataLoadingManager(layoutManager.api.children$);
@@ -164,6 +168,9 @@ export function getDashboardApi({
     ...settingsManager.api,
     ...filtersManager.api,
     ...trackPanel,
+    runUndo: undoManager.runUndo,
+    canUndo$: undoManager.canUndo$,
+    pushUndo: undoManager.pushUndo,
     ...unifiedSearchManager.api,
     ...unsavedChangesManager.api,
     ...projectRoutingManager?.api,
@@ -172,6 +179,16 @@ export function getDashboardApi({
     ...timesliceManager.api,
     ...pauseFetchManager.api,
     ...initializeTrackContentfulRender(),
+    runPastePanels: async () => {
+      const idsToPaste = Array.from(trackPanel.copiedPanelIds$.value);
+      for (const id of idsToPaste) {
+        try {
+          await layoutManager.api.duplicatePanel(id);
+        } catch {
+          // Skip panel if duplicate fails (e.g. panel no longer exists)
+        }
+      }
+    },
     executionContext: {
       type: 'dashboard',
       description: settingsManager.api.title$.value,

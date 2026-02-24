@@ -25,6 +25,8 @@ export function initializeTrackPanel(
   const expandedPanelId$ = new BehaviorSubject<string | undefined>(undefined);
   const focusedPanelId$ = new BehaviorSubject<string | undefined>(undefined);
   const highlightPanelId$ = new BehaviorSubject<string | undefined>(undefined);
+  const selectedPanelIds$ = new BehaviorSubject<Set<string>>(new Set());
+  const copiedPanelIds$ = new BehaviorSubject<Set<string>>(new Set());
   const scrollToPanelId$ = new BehaviorSubject<string | undefined>(undefined);
   const scrollToBottom$ = new Subject<void>();
   const scrollPosition$ = new BehaviorSubject<number | undefined>(undefined);
@@ -58,12 +60,7 @@ export function initializeTrackPanel(
       if (!id) return;
 
       untilLoaded(id).then(() => {
-        // Adds the highlight class in the next event loop to allow the DOM to update
-        setTimeout(() => panelRef.classList.add('dshDashboardGrid__item--highlighted'), 0);
-        // Removes the class after the highlight animation finishes
-        setTimeout(() => {
-          panelRef.classList.remove('dshDashboardGrid__item--highlighted');
-        }, highlightAnimationDuration);
+        // Panel creation highlight animation disabled; panel appears without animation
       });
 
       highlightPanelId$.next(undefined);
@@ -104,6 +101,23 @@ export function initializeTrackPanel(
     },
     setHighlightPanelId: (id: string | undefined) => {
       if (highlightPanelId$.value !== id) highlightPanelId$.next(id);
+    },
+    selectedPanelIds$,
+    setSelectedPanelIds: (ids: Set<string>) => {
+      selectedPanelIds$.next(ids);
+    },
+    togglePanelSelection: (id: string) => {
+      const next = new Set(selectedPanelIds$.value);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      selectedPanelIds$.next(next);
+    },
+    copiedPanelIds$,
+    copySelectedPanels: () => {
+      copiedPanelIds$.next(new Set(selectedPanelIds$.value));
     },
     setScrollToPanelId,
   };

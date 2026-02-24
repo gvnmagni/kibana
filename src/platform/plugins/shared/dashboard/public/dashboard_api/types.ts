@@ -188,6 +188,12 @@ export type DashboardApi = CanExpandPanels &
     setFilters: (filters?: Filter[] | undefined) => void;
     setFullScreenMode: (fullScreenMode: boolean) => void;
     setHighlightPanelId: (id: string | undefined) => void;
+    selectedPanelIds$: PublishingSubject<Set<string>>;
+    setSelectedPanelIds: (ids: Set<string>) => void;
+    togglePanelSelection: (id: string) => void;
+    copiedPanelIds$: PublishingSubject<Set<string>>;
+    copySelectedPanels: () => void;
+    runPastePanels: () => Promise<void>;
     setQuery: (query?: Query | undefined) => void;
     setProjectRouting: (projectRouting?: ProjectRouting) => void;
     setScrollToPanelId: (id: string | undefined) => void;
@@ -206,6 +212,11 @@ export type DashboardApi = CanExpandPanels &
     layout$: BehaviorSubject<DashboardLayout>;
 
     registerChildApi: (api: DefaultEmbeddableApi) => void;
+
+    /** Undo last dashboard action (remove, duplicate, group, share color mapping). Cmd+Z / Ctrl+Z */
+    runUndo?: () => Promise<void>;
+    canUndo$?: BehaviorSubject<boolean>;
+    pushUndo?: (fn: () => Promise<void>) => void;
 
     accessControl$: PublishingSubject<Partial<SavedObjectAccessControl>>;
     changeAccessMode: (accessMode: SavedObjectAccessControl['accessMode']) => Promise<void>;

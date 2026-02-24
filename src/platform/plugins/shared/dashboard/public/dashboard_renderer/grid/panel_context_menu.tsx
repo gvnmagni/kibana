@@ -1,0 +1,173 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import React, { useCallback, useMemo } from 'react';
+import {
+  EuiContextMenu,
+  EuiContextMenuPanelDescriptor,
+  EuiPortal,
+  EuiPopover,
+} from '@elastic/eui';
+import { useDashboardApi } from '../../dashboard_api/use_dashboard_api';
+import {
+  dashboardClonePanelActionStrings,
+  dashboardPanelContextMenuStrings,
+} from '../../dashboard_actions/_dashboard_actions_strings';
+
+export interface PanelContextMenuContextValue {
+  openContextMenu: (panelId: string, position: { x: number; y: number }) => void;
+}
+
+export const PanelContextMenuContext = React.createContext<PanelContextMenuContextValue | null>(null);
+
+export const SelectionPreviewContext = React.createContext<Set<string>>(new Set());
+
+export interface PanelContextMenuProps {
+  panelId: string | null;
+  position: { x: number; y: number } | null;
+  selectedPanelIds: Set<string>;
+  onClose: () => void;
+}
+
+export const PanelContextMenu = ({
+  panelId,
+  position,
+  selectedPanelIds,
+  onClose,
+}: PanelContextMenuProps) => {
+  const dashboardApi = useDashboardApi();
+
+  const effectivePanelIds = useMemo(() => {
+    if (!panelId) return new Set<string>();
+    return selectedPanelIds.has(panelId) ? selectedPanelIds : new Set([panelId]);
+  }, [panelId, selectedPanelIds]);
+
+  const handleDuplicate = useCallback(async () => {
+    const ids = Array.from(effectivePanelIds);
+    if (ids.length === 0) {
+      onClose();
+      return;
+    }
+    try {
+      if (ids.length === 1 && dashboardApi.duplicatePanel) {
+        await dashboardApi.duplicatePanel(ids[0]);
+      } else if (dashboardApi.duplicatePanels) {
+        await dashboardApi.duplicatePanels(ids);
+      } else {
+        for (const id of ids) {
+          try {
+            await dashboardApi.duplicatePanel(id);
+          } catch {
+            // skip
+          }
+        }
+      }
+    } finally {
+      onClose();
+    }
+  }, [dashboardApi, effectivePanelIds, onClose]);
+
+  const handleRemove = useCallback(() => {
+    const ids = Array.from(effectivePanelIds);
+    if (ids.length === 0) {
+      onClose();
+      return;
+    }
+    try {
+      if (ids.length === 1 && dashboardApi.removePanel) {
+        dashboardApi.removePanel(ids[0], { captureForUndo: true });
+      } else if (dashboardApi.removePanels) {
+        dashboardApi.removePanels(ids, { captureForUndo: true });
+      } else {
+        ids.forEach((id) => {
+          try {
+            dashboardApi.removePanel(id, { captureForUndo: true });
+          } catch {
+            // skip
+          }
+        });
+      }
+    } finally {
+      const nextSelected = new Set(selectedPanelIds);
+      effectivePanelIds.forEach((id) => nextSelected.delete(id));
+      dashboardApi.setSelectedPanelIds(nextSelected);
+      onClose();
+    }
+  }, [dashboardApi, effectivePanelIds, selectedPanelIds, onClose]);
+
+  const handleGroup = useCallback(() => {
+    if (effectivePanelIds.size < 2) return;
+    dashboardApi.movePanelsToNewSection(Array.from(effectivePanelIds));
+    onClose();
+  }, [dashboardApi, effectivePanelIds, onClose]);
+
+  const panels: EuiContextMenuPanelDescriptor[] = useMemo(() => {
+    const canGroup = effectivePanelIds.size >= 2;
+    return [
+      {
+        id: 0,
+        title: '',
+        items: [
+          {
+            name: dashboardClonePanelActionStrings.getDisplayName(),
+            icon: 'copy',
+            onClick: handleDuplicate,
+            'data-test-subj': 'dashboardPanelContextMenuDuplicate',
+          },
+          {
+            name: dashboardPanelContextMenuStrings.getRemoveLabel(),
+            icon: 'trash',
+            onClick: handleRemove,
+            'data-test-subj': 'dashboardPanelContextMenuRemove',
+          },
+          {
+            name: dashboardPanelContextMenuStrings.getGroupLabel(),
+            icon: 'folderClosed',
+            onClick: handleGroup,
+            disabled: !canGroup,
+            'data-test-subj': 'dashboardPanelContextMenuGroup',
+          },
+        ],
+      },
+    ];
+  }, [handleDuplicate, handleRemove, handleGroup, effectivePanelIds.size]);
+
+  if (!position || !panelId) return null;
+
+  return (
+    <EuiPortal>
+      <div
+        style={{
+          position: 'fixed',
+          left: position.x,
+          top: position.y,
+          width: 1,
+          height: 1,
+          zIndex: 9999,
+        }}
+        data-test-subj="dashboardPanelContextMenuAnchor"
+      >
+        <EuiPopover
+          button={<div style={{ width: 1, height: 1 }} />}
+          isOpen={true}
+          closePopover={onClose}
+          anchorPosition="downLeft"
+          panelPaddingSize="none"
+          hasArrow={false}
+        >
+          <EuiContextMenu
+            initialPanelId={0}
+            panels={panels}
+            data-test-subj="dashboardPanelContextMenu"
+          />
+        </EuiPopover>
+      </div>
+    </EuiPortal>
+  );
+};

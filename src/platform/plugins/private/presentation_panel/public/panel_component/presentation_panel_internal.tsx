@@ -14,6 +14,7 @@ import { EuiErrorBoundary, EuiPanel, htmlIdGenerator } from '@elastic/eui';
 import { css } from '@emotion/react';
 import { PanelLoader } from '@kbn/panel-loader';
 import type { PublishesTitle } from '@kbn/presentation-publishing';
+import type { PublishingSubject } from '@kbn/presentation-publishing';
 import {
   apiHasParentApi,
   apiPublishesViewMode,
@@ -84,10 +85,20 @@ const PresentationPanelChrome = <
   );
   const viewMode = rawViewMode ?? 'view';
 
+  const [smartTitle, breakdownFieldName] = useBatchedOptionalPublishingSubjects(
+    (api as Partial<{ smartTitle$: PublishingSubject<boolean | undefined> }>)?.smartTitle$,
+    (api as Partial<{ breakdownFieldName$: PublishingSubject<string | undefined> }>)
+      ?.breakdownFieldName$
+  );
+
+  const baseTitle = panelTitle ?? defaultPanelTitle;
+  const displayTitle =
+    Boolean(smartTitle) && breakdownFieldName ? breakdownFieldName : baseTitle;
+
   const hideTitle =
     Boolean(hidePanelTitle) ||
     Boolean(parentHidePanelTitle) ||
-    !Boolean(panelTitle ?? defaultPanelTitle);
+    !Boolean(displayTitle);
 
   const contentAttrs = useMemo(() => {
     const attrs: { [key: string]: boolean } = {};
@@ -135,7 +146,7 @@ const PresentationPanelChrome = <
             showBadges={showBadges}
             getActions={getActions}
             showNotifications={showNotifications}
-            panelTitle={panelTitle ?? defaultPanelTitle}
+            panelTitle={displayTitle}
             panelDescription={panelDescription ?? defaultPanelDescription}
             titleHighlight={titleHighlight}
           />

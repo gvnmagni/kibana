@@ -111,6 +111,11 @@ export const getHighlightStyles = (context: UseEuiTheme) => {
       '&.dshDashboardGrid__item--focused .embPanel': {
         outline: `${euiTheme.border.width.thick} solid ${euiTheme.colors.vis.euiColorVis0}`,
       },
+
+      // Shift+click selected panels: 2px solid blue border
+      '&.dshDashboardGrid__item--selected .embPanel': {
+        outline: `${euiTheme.border.width.thick} solid ${euiTheme.colors.borderStrongPrimary}`,
+      },
     },
   ]);
 };
