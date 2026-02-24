@@ -19,6 +19,10 @@ import type { Observable } from 'rxjs';
 import { BehaviorSubject, map, merge } from 'rxjs';
 
 import { getBreakdownFieldNameFromAttributes } from '../breakdown_field_name';
+import {
+  getBreakdownFieldOptions as getBreakdownFieldOptionsImpl,
+  setBreakdownField as setBreakdownFieldImpl,
+} from '../breakdown_field_selector';
 import type {
   LensComponentProps,
   LensPanelProps,
@@ -65,6 +69,8 @@ export interface DashboardServicesConfig {
     Pick<LensApi, 'parentApi'> &
     Pick<IntegrationCallbacks, 'updateOverrides' | 'getTriggerCompatibleActions'> & {
       breakdownFieldName$: BehaviorSubject<string | undefined>;
+      getBreakdownFieldOptions: () => Promise<Array<{ value: string; label: string }>>;
+      setBreakdownField: (fieldName: string) => Promise<void>;
     };
   anyStateChange$: Observable<void>;
   getLatestState: () => SerializedProps;
@@ -81,7 +87,7 @@ export function initializeDashboardServices(
   stateConfig: StateManagementConfig,
   parentApi: unknown,
   titleManager: ReturnType<typeof initializeTitleManager>,
-  { attributeService, uiActions }: LensEmbeddableStartServices
+  { attributeService, uiActions, dataViews }: LensEmbeddableStartServices
 ): DashboardServicesConfig {
   // For some legacy reason the title and description default value is picked differently
   // ( based on existing FTR tests ).
@@ -149,6 +155,17 @@ export function initializeDashboardServices(
       getSerializedStateByValue: () => {
         const { savedObjectId, ...byValueRuntimeState } = getLatestState();
         return transformToApiConfig(byValueRuntimeState);
+      },
+      getBreakdownFieldOptions: async () => {
+        const { attributes } = getLatestState();
+        return getBreakdownFieldOptionsImpl(attributes, dataViews);
+      },
+      setBreakdownField: async (fieldName: string) => {
+        const { attributes } = getLatestState();
+        const newAttributes = await setBreakdownFieldImpl(attributes, fieldName, dataViews);
+        if (newAttributes !== attributes) {
+          stateConfig.api.updateAttributes(newAttributes);
+        }
       },
     },
     anyStateChange$: merge(

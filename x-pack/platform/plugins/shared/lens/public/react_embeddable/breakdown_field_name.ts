@@ -6,11 +6,11 @@
  */
 
 interface DatasourceLayerColumns {
-  [columnId: string]: { label?: string };
+  [columnId: string]: { label?: string; sourceField?: string };
 }
 
 interface DatasourceLayers {
-  [layerId: string]: { columns?: DatasourceLayerColumns };
+  [layerId: string]: { columns?: DatasourceLayerColumns; indexPatternId?: string; columnOrder?: string[] };
 }
 
 interface VisLayer {
@@ -24,9 +24,21 @@ interface AttributesState {
   datasourceStates?: Record<string, { layers?: DatasourceLayers }>;
 }
 
+/** Reference name used for formBased layer index pattern (see form_based loader) */
+const getLayerReferenceName = (layerId: string) =>
+  `indexpattern-datasource-layer-${layerId}`;
+
+export interface BreakdownLayerInfo {
+  layerId: string;
+  columnId: string;
+  indexPatternId: string;
+}
+
 /**
- * Extracts the display name of the first breakdown/split dimension from Lens attributes,
- * for use with Smart Title. Supports XY (splitAccessors) and partition (primaryGroups) charts.
+ * Extracts the data field name of the first breakdown/split dimension from Lens attributes,
+ * for use with Smart Title. Returns only the raw field name (e.g. "region"), not the full
+ * breakdown label (e.g. "Top 5 values of region"). Supports XY (splitAccessors) and partition
+ * (primaryGroups) charts.
  */
 export function getBreakdownFieldNameFromAttributes(attributes: {
   state?: AttributesState;
@@ -56,5 +68,50 @@ export function getBreakdownFieldNameFromAttributes(attributes: {
   const dsLayers = dsState?.layers;
   const columns = dsLayers?.[layerId]?.columns;
   const column = columns?.[columnId];
-  return column?.label;
+  if (!column) return undefined;
+  // Prefer the raw field name (sourceField) over the full breakdown label (e.g. "Top 5 values of X")
+  return column.sourceField ?? column.label;
+}
+
+/**
+ * Returns the first breakdown/split dimension layer info for formBased datasource,
+ * for use when listing or changing the breakdown field (e.g. Smart Title popover).
+ * Resolves indexPatternId from the layer when present, or from attributes.references
+ * when the state is persisted (saved/by-reference) and layer has no indexPatternId.
+ */
+export function getBreakdownLayerInfo(attributes: {
+  state?: AttributesState;
+  references?: Array<{ type?: string; id?: string; name?: string }>;
+}): BreakdownLayerInfo | undefined {
+  const state = attributes?.state;
+  if (!state?.visualization || !state?.datasourceStates) return undefined;
+
+  const layers = state.visualization.layers;
+  if (!layers?.length) return undefined;
+
+  const dsStates = state.datasourceStates;
+  const dsState = dsStates.formBased ?? dsStates.indexpattern;
+  const dsLayers = dsState?.layers;
+  if (!dsLayers) return undefined;
+
+  const references = attributes?.references ?? [];
+
+  for (const layer of layers) {
+    const firstSplit = layer.splitAccessors?.[0] ?? layer.primaryGroups?.[0];
+    if (firstSplit) {
+      const layerId = layer.layerId ?? '';
+      const layerState = dsLayers[layerId];
+      let indexPatternId = layerState?.indexPatternId;
+      if (!indexPatternId && layerId) {
+        indexPatternId = references.find(
+          (ref) => ref.name === getLayerReferenceName(layerId)
+        )?.id;
+      }
+      if (layerId && firstSplit && indexPatternId) {
+        return { layerId, columnId: firstSplit, indexPatternId };
+      }
+      break;
+    }
+  }
+  return undefined;
 }

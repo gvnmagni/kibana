@@ -92,8 +92,10 @@ const PresentationPanelChrome = <
   );
 
   const baseTitle = panelTitle ?? defaultPanelTitle;
-  const displayTitle =
-    Boolean(smartTitle) && breakdownFieldName ? breakdownFieldName : baseTitle;
+  const smartTitleActive = Boolean(smartTitle) && Boolean(breakdownFieldName);
+  const displayTitle = smartTitleActive
+    ? `Count of records by ${breakdownFieldName}`
+    : baseTitle;
 
   const hideTitle =
     Boolean(hidePanelTitle) ||
@@ -149,6 +151,8 @@ const PresentationPanelChrome = <
             panelTitle={displayTitle}
             panelDescription={panelDescription ?? defaultPanelDescription}
             titleHighlight={titleHighlight}
+            smartTitleActive={smartTitleActive}
+            breakdownFieldName={breakdownFieldName}
           />
         )}
         {children}
@@ -202,7 +206,7 @@ export const PresentationPanelInternal = <
             <Component
               {...(componentProps as React.ComponentProps<typeof Component>)}
               ref={(newApi) => {
-                if (newApi && !api) setApi(newApi);
+                setApi(newApi ?? null);
               }}
             />
           </EuiErrorBoundary>

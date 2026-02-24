@@ -66,6 +66,7 @@ export const DashboardGrid = () => {
   const dashboardApi = useDashboardApi();
   const dashboardInternalApi = useDashboardInternalApi();
   const layoutRef = useRef<HTMLDivElement | null>(null);
+  const justDidSelectionDragRef = useRef(false);
 
   const layoutStyles = useLayoutStyles();
   const panelRefs = useRef<{ [panelId: string]: React.Ref<HTMLDivElement> }>({});
@@ -119,6 +120,20 @@ export const DashboardGrid = () => {
     current: { x: number; y: number };
   } | null>(null);
 
+  const handleGridClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (viewMode !== 'edit') return;
+      if (justDidSelectionDragRef.current) {
+        justDidSelectionDragRef.current = false;
+        return;
+      }
+      if ((selectedPanelIds?.size ?? 0) === 0) return;
+      if ((e.target as HTMLElement).closest('[data-test-subj="dashboardPanel"]')) return;
+      dashboardApi.setSelectedPanelIds(new Set());
+    },
+    [viewMode, selectedPanelIds, dashboardApi]
+  );
+
   const handleGridMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (viewMode !== 'edit' || !e.shiftKey) return;
@@ -163,6 +178,7 @@ export const DashboardGrid = () => {
           dragStateRef.current = null;
           setSelectionDrag(null);
           setPreviewSelectedPanelIds(new Set());
+          justDidSelectionDragRef.current = true;
         }
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
@@ -360,6 +376,7 @@ export const DashboardGrid = () => {
           })}
           css={styles.dashboard}
           onMouseDown={handleGridMouseDown}
+          onClick={handleGridClick}
         >
           {memoizedGridLayout}
         </div>

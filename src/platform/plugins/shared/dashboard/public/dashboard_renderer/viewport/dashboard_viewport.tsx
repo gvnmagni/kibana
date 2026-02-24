@@ -18,6 +18,7 @@ import { useDashboardApi } from '../../dashboard_api/use_dashboard_api';
 import { useDashboardInternalApi } from '../../dashboard_api/use_dashboard_internal_api';
 import { DashboardGrid } from '../grid';
 import { DashboardEmptyScreen } from './empty_screen/dashboard_empty_screen';
+import { DashboardKeyboardShortcuts } from './dashboard_keyboard_shortcuts';
 
 export const DashboardViewport = () => {
   const dashboardApi = useDashboardApi();
@@ -103,6 +104,11 @@ export const DashboardViewport = () => {
       {fullScreenMode && (
         <EuiPortal>
           <ExitFullScreenButton onExit={onExit} toggleChrome={!dashboardApi.isEmbeddedExternally} />
+        </EuiPortal>
+      )}
+      {viewMode === 'edit' && (
+        <EuiPortal>
+          <DashboardKeyboardShortcuts />
         </EuiPortal>
       )}
       <div
