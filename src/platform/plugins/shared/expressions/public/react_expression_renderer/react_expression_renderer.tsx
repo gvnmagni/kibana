@@ -58,7 +58,7 @@ export function ReactExpressionRenderer({
         css={css({
           width: '100%',
           height: '100%',
-          ...(padding ? { padding: euiTheme.size[padding] } : {}),
+          padding: '0px',
           ...(isEmpty || !!error ? { display: 'none' } : {}),
         })}
         ref={nodeRef}

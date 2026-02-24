@@ -69,7 +69,7 @@ export const PresentationPanelHeader = <
       captionStyles: css`
         .dshLayout--editing &:hover {
           cursor: move;
-          background-color: ${transparentize(euiTheme.colors.warning, 0.2)};
+          background-color: ${transparentize(euiTheme.colors.backgroundBasePrimary, 0.5)};
         }
       `,
       headerStyles: css`
