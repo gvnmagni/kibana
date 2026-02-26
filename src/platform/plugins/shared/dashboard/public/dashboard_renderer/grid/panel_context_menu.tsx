@@ -16,6 +16,10 @@ import {
 } from '@elastic/eui';
 import { useDashboardApi } from '../../dashboard_api/use_dashboard_api';
 import {
+  applySelectedPanelsLayout,
+  type SelectedPanelsLayoutMode,
+} from '../../dashboard_api/layout_manager/apply_selected_panels_layout';
+import {
   dashboardClonePanelActionStrings,
   dashboardPanelContextMenuStrings,
 } from '../../dashboard_actions/_dashboard_actions_strings';
@@ -107,8 +111,35 @@ export const PanelContextMenu = ({
     onClose();
   }, [dashboardApi, effectivePanelIds, onClose]);
 
+  const handleLayoutSubAction = useCallback(
+    (which: SelectedPanelsLayoutMode) => {
+      const ids = Array.from(effectivePanelIds);
+      if (ids.length === 0) {
+        onClose();
+        return;
+      }
+      const layout = dashboardApi.layout$.getValue();
+      const snapshot = {
+        ...layout,
+        panels: Object.fromEntries(
+          Object.entries(layout.panels).map(([id, p]) => [id, { ...p, grid: { ...p.grid } }])
+        ),
+      };
+      if (dashboardApi.pushUndo) {
+        dashboardApi.pushUndo(async () => {
+          dashboardApi.layout$.next(snapshot);
+        });
+      }
+      const nextLayout = applySelectedPanelsLayout(layout, effectivePanelIds, which);
+      dashboardApi.layout$.next(nextLayout);
+      onClose();
+    },
+    [dashboardApi, effectivePanelIds, onClose]
+  );
+
   const panels: EuiContextMenuPanelDescriptor[] = useMemo(() => {
     const canGroup = effectivePanelIds.size >= 2;
+    const layoutSubPanelId = 1;
     return [
       {
         id: 0,
@@ -133,10 +164,46 @@ export const PanelContextMenu = ({
             disabled: !canGroup,
             'data-test-subj': 'dashboardPanelContextMenuGroup',
           },
+          {
+            name: dashboardPanelContextMenuStrings.getLayoutLabel(),
+            icon: 'grid',
+            panel: layoutSubPanelId,
+            'data-test-subj': 'dashboardPanelContextMenuLayout',
+          },
+        ],
+      },
+      {
+        id: layoutSubPanelId,
+        title: dashboardPanelContextMenuStrings.getLayoutLabel(),
+        items: [
+          {
+            name: dashboardPanelContextMenuStrings.getLayoutHeaderLabel(),
+            icon: 'alignTop',
+            onClick: () => handleLayoutSubAction('header'),
+            'data-test-subj': 'dashboardPanelContextMenuLayoutHeader',
+          },
+          {
+            name: dashboardPanelContextMenuStrings.getLayoutGridLabel(),
+            icon: 'grid',
+            onClick: () => handleLayoutSubAction('grid'),
+            'data-test-subj': 'dashboardPanelContextMenuLayoutGrid',
+          },
+          {
+            name: dashboardPanelContextMenuStrings.getLayoutSideLabel(),
+            icon: 'boxesHorizontal',
+            onClick: () => handleLayoutSubAction('side'),
+            'data-test-subj': 'dashboardPanelContextMenuLayoutSide',
+          },
         ],
       },
     ];
-  }, [handleDuplicate, handleRemove, handleGroup, effectivePanelIds.size]);
+  }, [
+    handleDuplicate,
+    handleRemove,
+    handleGroup,
+    handleLayoutSubAction,
+    effectivePanelIds.size,
+  ]);
 
   if (!position || !panelId) return null;
 

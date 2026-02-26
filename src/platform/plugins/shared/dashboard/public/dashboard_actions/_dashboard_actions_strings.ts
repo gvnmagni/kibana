@@ -69,6 +69,22 @@ export const dashboardPanelContextMenuStrings = {
     i18n.translate('dashboard.panel.contextMenu.group', {
       defaultMessage: 'Group',
     }),
+  getLayoutLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.layout', {
+      defaultMessage: 'Layout',
+    }),
+  getLayoutHeaderLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.layoutHeader', {
+      defaultMessage: 'Header',
+    }),
+  getLayoutGridLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.layoutGrid', {
+      defaultMessage: 'Grid',
+    }),
+  getLayoutSideLabel: () =>
+    i18n.translate('dashboard.panel.contextMenu.layoutSide', {
+      defaultMessage: 'Side',
+    }),
 };
 
 export const dashboardClonePanelActionStrings = {
