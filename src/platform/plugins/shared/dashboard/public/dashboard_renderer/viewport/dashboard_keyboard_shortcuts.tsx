@@ -11,16 +11,16 @@ import React, { useMemo } from 'react';
 import { css } from '@emotion/react';
 import { EuiFlexGroup, EuiFlexItem, useEuiTheme } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
-import { isMac } from '@kbn/shared-ux-utility';
-
-const CMD_OR_CTRL = isMac ? '⌘' : 'Ctrl';
+import { useKeyboardShortcutHighlight } from './keyboard_shortcut_highlight_context';
 
 export const DashboardKeyboardShortcuts = () => {
   const { euiTheme } = useEuiTheme();
+  const { highlightedAction } = useKeyboardShortcutHighlight();
 
   const listItems = useMemo(
     () => [
       {
+        id: 'selection' as const,
         title: (
           <kbd>
             {i18n.translate('dashboard.keyboardShortcuts.shiftKey', {
@@ -33,6 +33,7 @@ export const DashboardKeyboardShortcuts = () => {
         }),
       },
       {
+        id: 'copy' as const,
         title: (
           <>
             <kbd>Cmd C</kbd>
@@ -43,6 +44,7 @@ export const DashboardKeyboardShortcuts = () => {
         }),
       },
       {
+        id: 'paste' as const,
         title: (
           <>
             <kbd>Cmd V</kbd>
@@ -53,6 +55,7 @@ export const DashboardKeyboardShortcuts = () => {
         }),
       },
       {
+        id: 'undo' as const,
         title: (
           <>
             <kbd>Cmd Z</kbd>
@@ -63,6 +66,7 @@ export const DashboardKeyboardShortcuts = () => {
         }),
       },
       {
+        id: 'drag' as const,
         title: (
           <kbd>
             {i18n.translate('dashboard.keyboardShortcuts.drag', {
@@ -120,6 +124,23 @@ export const DashboardKeyboardShortcuts = () => {
     [euiTheme]
   );
 
+  const itemHighlightStyles = useMemo(
+    () => css`
+      color: ${euiTheme.colors.primary};
+      border-radius: ${euiTheme.border.radius.small};
+      font-weight: ${euiTheme.font.weight.bold};
+
+      kbd {
+        color: ${euiTheme.colors.backgroundBasePlain};
+        background: ${euiTheme.colors.primary};
+        border-color: ${euiTheme.colors.borderStrongPrimary};
+        font-weight: ${euiTheme.font.weight.bold};
+        box-shadow: 0 1px 0 ${euiTheme.colors.primary};
+      }
+    `,
+    [euiTheme]
+  );
+
   const separatorStyles = useMemo(
     () => css`
       width: 1px;
@@ -147,10 +168,17 @@ export const DashboardKeyboardShortcuts = () => {
         responsive={false}
       >
         {listItems.map((item, index) => (
-          <React.Fragment key={index}>
+          <React.Fragment key={item.id}>
             {index > 0 && <div css={separatorStyles} aria-hidden />}
             <EuiFlexItem grow={false}>
-              <span css={itemStyles}>
+              <span
+                css={[itemStyles, highlightedAction === item.id && itemHighlightStyles]}
+                data-test-subj={
+                  highlightedAction === item.id
+                    ? 'dashboardKeyboardShortcutHighlighted'
+                    : undefined
+                }
+              >
                 {item.title} {item.description}
               </span>
             </EuiFlexItem>

@@ -35,6 +35,7 @@ import { coreServices, screenshotModeService, uiActionsService } from '../servic
 
 import { Dashboard404Page } from './dashboard_404';
 import { DashboardViewport } from './viewport/dashboard_viewport';
+import { KeyboardShortcutHighlightProvider } from './viewport/keyboard_shortcut_highlight_context';
 import { GlobalPrintStyles } from './print_styles';
 import { DashboardControlsRenderer } from '../dashboard_controls_renderer';
 
@@ -204,8 +205,10 @@ export function DashboardRenderer({
           <KibanaContextProvider services={{ uiActions: uiActionsService }}>
             <DashboardContext.Provider value={dashboardApi}>
               <DashboardInternalContext.Provider value={dashboardInternalApi}>
-                {showControlGroup && <DashboardControlsRenderer />}
-                <DashboardViewport />
+                <KeyboardShortcutHighlightProvider>
+                  {showControlGroup && <DashboardControlsRenderer />}
+                  <DashboardViewport />
+                </KeyboardShortcutHighlightProvider>
               </DashboardInternalContext.Provider>
             </DashboardContext.Provider>
           </KibanaContextProvider>

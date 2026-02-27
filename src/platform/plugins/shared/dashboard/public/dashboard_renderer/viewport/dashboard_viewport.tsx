@@ -19,10 +19,12 @@ import { useDashboardInternalApi } from '../../dashboard_api/use_dashboard_inter
 import { DashboardGrid } from '../grid';
 import { DashboardEmptyScreen } from './empty_screen/dashboard_empty_screen';
 import { DashboardKeyboardShortcuts } from './dashboard_keyboard_shortcuts';
+import { useKeyboardShortcutHighlight } from './keyboard_shortcut_highlight_context';
 
 export const DashboardViewport = () => {
   const dashboardApi = useDashboardApi();
   const dashboardInternalApi = useDashboardInternalApi();
+  const { triggerHighlight } = useKeyboardShortcutHighlight();
   const [
     dashboardTitle,
     description,
@@ -60,18 +62,21 @@ export const DashboardViewport = () => {
       if (isCopy) {
         e.preventDefault();
         dashboardApi.copySelectedPanels();
+        triggerHighlight('copy');
       } else if (isPaste) {
         e.preventDefault();
         dashboardApi.runPastePanels();
+        triggerHighlight('paste');
       } else if (isUndo && dashboardApi.runUndo) {
         e.preventDefault();
         dashboardApi.runUndo();
+        triggerHighlight('undo');
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, dashboardApi]);
+  }, [viewMode, dashboardApi, triggerHighlight]);
 
   const { panelCount, visiblePanelCount, sectionCount } = useMemo(() => {
     const panels = Object.values(layout.panels);
